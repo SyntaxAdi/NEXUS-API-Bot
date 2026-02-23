@@ -11,7 +11,44 @@ from modules.api_client import check_api_status, fetch_search_results, create_pa
 # Global queue semaphore: Allows up to 10 concurrent searches to prevent overloading the backend.
 search_queue_semaphore = asyncio.Semaphore(10)
 
+async def check_premium_expiries(client: TelegramClient):
+    """Background task to remind users 24h before premium expires."""
+    while True:
+        try:
+            now = datetime.utcnow()
+            alert_window = now + timedelta(days=1)
+            
+            # Find premium users expiring in < 24h who haven't been notified yet
+            expiring_users = await users_col.find({
+                "type": "premium",
+                "premium_expiry": {"$gt": now, "$lte": alert_window},
+                "notified_expiry": {"$ne": True}
+            }).to_list(length=None)
+            
+            for user in expiring_users:
+                try:
+                    await client.send_message(
+                        user["user_id"], 
+                        "⚠️ **Reminder:** Your Premium access will expire in less than 24 hours!\n"
+                        "Use `/account` to check your exact expiration time."
+                    )
+                    # Mark as notified
+                    await users_col.update_one(
+                        {"user_id": user["user_id"]},
+                        {"$set": {"notified_expiry": True}}
+                    )
+                except Exception:
+                    pass
+                await asyncio.sleep(1)  # Spread out messages safely
+        except Exception:
+            pass
+        
+        await asyncio.sleep(3600)  # Check every hour
+
 def register_user_handlers(client: TelegramClient):
+    
+    # Start the background checker
+    asyncio.create_task(check_premium_expiries(client))
 
     @client.on(events.NewMessage(pattern=r'^/start(?: (.*))?'))
     async def start_cmd(event: Message):
@@ -98,7 +135,7 @@ def register_user_handlers(client: TelegramClient):
                     await wait_msg.edit(
                         f"✅ **Found {len(results)} result(s)**\n\n"
                         f"🔗 [View Full Results Securely]({paste_url})\n\n"
-                        f"⚠️ _Note: This link will permanently self-destruct after it is opened once._", 
+                        f"⚠️ **Note:** This link will permanently self-destruct after it is opened once.", 
                         link_preview=False
                     )
                 else:
@@ -136,10 +173,44 @@ def register_user_handlers(client: TelegramClient):
         
         await users_col.update_one(
             {"user_id": user_id}, 
-            {"$set": {"type": "premium", "premium_expiry": new_expiry}}
+            {"$set": {"type": "premium", "premium_expiry": new_expiry, "notified_expiry": False}}
         )
         
         await event.reply(f"✅ Successfully redeemed! You now have Premium access for {key_doc['duration_days']} days.")
+
+    @client.on(events.NewMessage(pattern=r'^/account'))
+    async def account_cmd(event: Message):
+        user_id = event.sender_id
+        user = await get_user(user_id)
+        if not user:
+            user = await create_user(user_id)
+            
+        referral_count = user.get('referral_count', 0)
+        
+        msg = f"👤 **Account Info**\n\n"
+        msg += f"**ID:** `{user_id}`\n"
+        msg += f"**Tier:** `{'💎 Premium' if user['type'] == 'premium' else '🆓 Free'}`\n"
+        msg += f"**Referrals:** `{referral_count}` (Need {5 - (referral_count % 5)} more for 1 week Premium!)\n"
+        
+        if user['type'] == 'premium' and user.get('premium_expiry'):
+            now = datetime.utcnow()
+            expiry = user['premium_expiry']
+            if expiry > now:
+                diff = expiry - now
+                days = diff.days
+                hours, remainder = divmod(diff.seconds, 3600)
+                minutes, _ = divmod(remainder, 60)
+                time_left = f"{days}d {hours}h {minutes}m"
+                msg += f"**Premium Ends In:** `{time_left}`\n"
+            else:
+                msg += "**Premium Ends In:** `Expired`\n"
+        
+        # Add their unique link
+        bot_me = await client.get_me()
+        ref_link = f"https://t.me/{bot_me.username}?start={user_id}"
+        msg += f"\n🎁 **Referral Link:**\n`{ref_link}`"
+        
+        await event.reply(msg)
 
     @client.on(events.NewMessage(pattern=r'^/stats'))
     async def stats_cmd(event: Message):

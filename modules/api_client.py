@@ -9,7 +9,7 @@ async def check_api_status() -> tuple[bool, str]:
     """Returns (is_ready, message). Checks all backend URLs to ensure cluster is ready."""
     try:
         async with httpx.AsyncClient() as client:
-            for url in NEXUS_API_URLS:
+            for i, url in enumerate(NEXUS_API_URLS):
                 try:
                     res = await client.get(
                         f"{url}/status",
@@ -19,11 +19,11 @@ async def check_api_status() -> tuple[bool, str]:
                     if res.status_code == 200:
                         data = res.json()
                         if data.get("state") != "done":
-                            return False, f"Node {url} is not ready. State: {data.get('state')}"
+                            return False, f"Node-{i+1} is not ready. State: {data.get('state')}"
                     else:
-                        return False, f"Node {url} returned HTTP {res.status_code}"
+                        return False, f"Node-{i+1} returned HTTP {res.status_code}"
                 except Exception as e:
-                    return False, f"Node {url} is unreachable: {e}"
+                    return False, f"Node-{i+1} is unreachable: {e}"
         return True, "All API nodes are ready."
     except Exception as e:
         logger.error(f"Cluster Check Error: {e}")
@@ -34,17 +34,17 @@ async def fetch_search_results(query: str, limit: int = 10) -> list[str]:
     results = []
     try:
         async with httpx.AsyncClient() as client:
-            for url in NEXUS_API_URLS:
+            for i, url in enumerate(NEXUS_API_URLS):
                 try:
                     async with client.stream(
                         "GET", 
                         f"{url}/search",
                         params={"search": query, "limit": limit},
                         headers={"x-api-key": NEXUS_API_KEY},
-                        timeout=30.0
+                        timeout=300.0
                     ) as response:
                         if response.status_code != 200:
-                            results.append(f"Error from {url}: HTTP {response.status_code}")
+                            results.append(f"Error from Node-{i+1}: HTTP {response.status_code}")
                             continue
                         
                         async for chunk in response.aiter_lines():
@@ -53,13 +53,14 @@ async def fetch_search_results(query: str, limit: int = 10) -> list[str]:
                                 if text.startswith('{"error":'):
                                     try:
                                         err = json.loads(text)
-                                        results.append(f"Backend Error: {err['error']}")
+                                        results.append(f"Backend Error (Node-{i+1}): {err['error']}")
                                         continue
                                     except:
                                         pass
                                 results.append(text)
                 except Exception as node_err:
-                    results.append(f"Failed to reach {url}: {node_err}")
+                    err_name = type(node_err).__name__
+                    results.append(f"Failed to reach Node-{i+1}: {err_name} {str(node_err)}")
         return results
     except Exception as e:
         logger.error(f"API Search Error: {e}")
