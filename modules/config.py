@@ -10,15 +10,14 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "nexus_bot_db")
 
-NEXUS_API_URLS = [
-    "https://aadityapawarx1-nexus-api-1.hf.space",
-    "https://aadityapawarx1-nexus-api-2.hf.space",
-    "https://aadityapawarx1-nexus-api-3.hf.space",
-    "https://aadityapawarx1-nexus-api-4.hf.space",
-    "https://aadityapawarx1-nexus-api-5.hf.space",
-    "https://aadityapawarx1-nexus-api-6.hf.space",
-]
+_urls_env = os.getenv(
+    "NEXUS_API_URLS",
+    "https://aadityapawarx1-nexus-api-1.hf.space,https://aadityapawarx1-nexus-api-2.hf.space,https://aadityapawarx1-nexus-api-3.hf.space,https://aadityapawarx1-nexus-api-4.hf.space,https://aadityapawarx1-nexus-api-5.hf.space,https://aadityapawarx1-nexus-api-6.hf.space"
+)
+NEXUS_API_URLS = [url.strip() for url in _urls_env.split(",") if url.strip()]
 NEXUS_API_KEY = os.getenv("NEXUS_API_KEY", "")
+
+PASTEBIN_URL = os.getenv("PASTEBIN_URL", "https://aadityapawarx1-mypastebin.hf.space")
 
 # The owner/admin Telegram User ID
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))

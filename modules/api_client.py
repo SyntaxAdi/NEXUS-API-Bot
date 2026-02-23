@@ -1,7 +1,7 @@
 import httpx
 import logging
 import json
-from modules.config import NEXUS_API_URLS, NEXUS_API_KEY
+from modules.config import NEXUS_API_URLS, NEXUS_API_KEY, PASTEBIN_URL
 
 logger = logging.getLogger("api_client")
 
@@ -67,7 +67,7 @@ async def fetch_search_results(query: str, limit: int = 10) -> list[str]:
 
 async def create_paste(content: str) -> str:
     """Uploads large search results to PatBin as a burn-after-reading paste."""
-    pastebin_url = "https://aadityapawarx1-mypastebin.hf.space"
+    pastebin_url = PASTEBIN_URL
     payload = {
         "title": "Nexus API Results",
         "content": content,
