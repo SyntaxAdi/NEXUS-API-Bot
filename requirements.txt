@@ -1,0 +1,4 @@
+Telethon
+motor
+httpx
+python-dotenv
