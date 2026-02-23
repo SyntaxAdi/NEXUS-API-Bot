@@ -5,6 +5,7 @@ from modules.config import API_ID, API_HASH, BOT_TOKEN
 from modules.database import init_db
 from modules.user_handlers import register_user_handlers
 from modules.admin_handlers import register_admin_handlers
+from modules.help import register_help_handlers
 
 # Configure logging
 logging.basicConfig(
@@ -26,6 +27,7 @@ async def main():
     # Register modular handlers
     register_user_handlers(client)
     register_admin_handlers(client)
+    register_help_handlers(client)
 
     # Run until disconnected
     await client.run_until_disconnected()
